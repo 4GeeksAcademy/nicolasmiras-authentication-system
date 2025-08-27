@@ -9,6 +9,12 @@ from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
 from models import db, User, Planet, Character, Favorite_Character, Favorite_Planet
+
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
+
 from sqlalchemy import select
 #from models import Person
 
@@ -26,6 +32,10 @@ MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
 setup_admin(app)
+
+# Setup the Flask-JWT-Extended extension
+app.config["JWT_SECRET_KEY"] = "super-secret"  # Change this!
+jwt = JWTManager(app)
 
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
@@ -176,7 +186,25 @@ def delete_favorite_character(people_id):
 
 
 
+@app.route("/login", methods=["POST"])
+def login():
+    email = request.json.get("email", None)
+    password = request.json.get("password", None)
+
+    user= User.query.filter_by(email=email).first()
+    if user is None:
+        return jsonify({"msg": "usuario no existente"}), 401
+
+
+    if password != user.password:
+        return jsonify({"msg": "email o password incorrecto"}), 401
+
+    access_token = create_access_token(identity=email)
+    return jsonify(access_token=access_token)
+
+
 ################################
+
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
