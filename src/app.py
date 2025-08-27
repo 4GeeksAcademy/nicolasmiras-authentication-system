@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, Planet
+from models import db, User, Planet, Character, Favorite_Character, Favorite_Planet
 from sqlalchemy import select
 #from models import Person
 
@@ -40,20 +40,20 @@ def sitemap():
 ################################
 
 
-@app.route('/user', methods=['GET'])
-def get_users():
+@app.route('/character', methods=['GET'])
+def get_characters():
 
-    all_users = db.session.execute(select(User)).scalars().all()
-    result = list(map(lambda user: user.serialize(),all_users))
+    all_characters = db.session.execute(select(Character)).scalars().all()
+    result = list(map(lambda character: character.serialize(),all_characters))
 
     return jsonify(result), 200
 
-@app.route('/user/<int:user_id>', methods=['GET'])
-def get_user(user_id):
+@app.route('/character/<int:character_id>', methods=['GET'])
+def get_character(character_id):
 
-    user=db.session.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+    character=db.session.execute(select(Character).where(Character.id == character_id)).scalar_one_or_none()
 
-    return jsonify(user.serialize()), 200
+    return jsonify(character.serialize()), 200
 
 @app.route('/planet', methods=['GET'])
 def get_planets():
@@ -69,6 +69,110 @@ def get_planet(planet_id):
     planet=db.session.execute(select(Planet).where(Planet.id == planet_id)).scalar_one_or_none()
 
     return jsonify(planet.serialize()), 200
+
+
+@app.route('/user', methods=['GET'])
+def get_users():
+
+    all_users = db.session.execute(select(User)).scalars().all()
+    result = list(map(lambda user: user.serialize(),all_users))
+
+    return jsonify(result), 200
+
+
+@app.route('/users/<int:user_id>/favorites', methods=['GET'])
+def get_user_favorites(user_id):
+    
+    favorite_characters = (
+        db.session.execute(
+            select(Favorite_Character).where(Favorite_Character.id_user == user_id)
+        ).scalars().all()
+    )
+
+    characters_result = [
+        fav.character.serialize() for fav in favorite_characters if fav.character
+    ]
+
+    favorite_planets = (
+        db.session.execute(
+            select(Favorite_Planet).where(Favorite_Planet.id_user == user_id)
+        ).scalars().all()
+    )
+
+    planets_result = [
+        fav.planet.serialize() for fav in favorite_planets if fav.planet
+    ]
+
+    return jsonify({
+        "user_id": user_id,
+        "favorite_characters": characters_result,
+        "favorite_planets": planets_result
+    }), 200
+
+
+
+@app.route('/favorite/planet/<int:planet_id>', methods=['POST'])
+def add_favorite_planet(planet_id):
+
+    data = request.get_json()
+    user_id = data.get("user_id")
+
+    new_favorite = Favorite_Planet(id_planet=planet_id, id_user=user_id)
+    db.session.add(new_favorite)
+    db.session.commit()
+
+    return jsonify({"planet_id": planet_id, "status": "added"}), 201
+
+
+@app.route('/favorite/people/<int:people_id>', methods=['POST'])
+def add_favorite_character(people_id):
+
+    data = request.get_json()
+    user_id = data.get("user_id") 
+
+    new_favorite = Favorite_Character(id_character=people_id, id_user=user_id)
+    db.session.add(new_favorite)
+    db.session.commit()
+
+    return jsonify({"people_id": people_id, "status": "added"}), 201
+
+
+@app.route('/favorite/planet/<int:planet_id>', methods=['DELETE'])
+def delete_favorite_planet(planet_id):
+
+    data = request.get_json()
+    user_id = data.get("user_id")
+
+    favorite = db.session.execute(
+        select(Favorite_Planet).where(
+            Favorite_Planet.id_user == user_id,
+            Favorite_Planet.id_planet == planet_id
+        )
+    ).scalar_one()
+
+    db.session.delete(favorite)
+    db.session.commit()
+
+    return jsonify({"planet_id": planet_id, "status": "removed"}), 200
+
+
+@app.route('/favorite/people/<int:people_id>', methods=['DELETE'])
+def delete_favorite_character(people_id):
+    
+    data = request.get_json()
+    user_id = data.get("user_id")
+
+    favorite = db.session.execute(
+        select(Favorite_Character).where(
+            Favorite_Character.id_user == user_id,
+            Favorite_Character.id_character == people_id
+        )
+    ).scalar_one()
+
+    db.session.delete(favorite)
+    db.session.commit()
+
+    return jsonify({"people_id": people_id, "status": "removed"}), 200
 
 
 
